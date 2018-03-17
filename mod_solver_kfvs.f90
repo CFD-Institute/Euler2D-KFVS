@@ -1,3 +1,6 @@
+! Remarks:
+! 17/03/2018: Truong replaces symmetry boundary condition with solid wall boundary condition (airfoil surface),
+!             in order to have a more meanningful solution.
 module mod_solver_kfvs
     use mod_cell_2D
     use mod_fvm_face_2D
@@ -8,9 +11,9 @@ module mod_solver_kfvs
     real(8), parameter                   :: cfl = 0.9d0
     real(8), dimension(:),   allocatable :: rho, ux, uy, t
     real(8), dimension(:),   allocatable :: p, a, b, e
-    real(8), dimension(:,:), allocatable :: vect_u, vect_unew, flux, rhs, rhsdummy_symetrie, rhsdummy_entree, rhsdummy_sortie
-    real(8), dimension(:,:), allocatable :: vardummy_symetrie, vardummy_entree, vardummy_sortie
-    integer                              :: nb_symmetry = 0, nb_inlet = 0, nb_outlet = 0, nmax
+    real(8), dimension(:,:), allocatable :: vect_u, vect_unew, flux, rhs, rhsdummy_symetrie, rhsdummy_entree, rhsdummy_sortie, rhsdummy_paroi_solid
+    real(8), dimension(:,:), allocatable :: vardummy_symetrie, vardummy_entree, vardummy_sortie, vardummy_paroi_solid
+    integer                              :: nb_symmetry = 0, nb_inlet = 0, nb_outlet = 0, nb_paroi_solid = 0, nmax
     contains
 !----------------------------------------------------------------------    
         subroutine donnee_initiale
@@ -70,13 +73,17 @@ module mod_solver_kfvs
         integer                    :: i
         type(fvm_face_2D), pointer :: pfac
         
-        if (nb_symmetry > 0) return 
+        !if (nb_symmetry > 0) return 
+        if (nb_paroi_solid > 0) return
         
         ! Allocating vardummy
         do i = 1, nbfaces
             pfac => faces_fvm%face_2D(i)%f
-            if (pfac%bc_typ == 1) then ! Airfoil - symetrie
-                nb_symmetry = nb_symmetry + 1
+            !if (pfac%bc_typ == 1) then ! Airfoil - symetrie
+            !    nb_symmetry = nb_symmetry + 1
+            !endif
+            if (pfac%bc_typ == 1) then ! Airfoil - paroi solid
+                nb_paroi_solid = nb_paroi_solid + 1
             endif
             if (pfac%bc_typ == 2) then ! Inflow
                 nb_inlet    = nb_inlet + 1
@@ -86,10 +93,15 @@ module mod_solver_kfvs
             endif
         enddo 
         
-        if (.not. allocated(vardummy_symetrie)) then
-            allocate(vardummy_symetrie(1:nb_symmetry,1:8))
-            vardummy_symetrie = 0.0d0
-        endif 
+        !if (.not. allocated(vardummy_symetrie)) then
+        !    allocate(vardummy_symetrie(1:nb_symmetry,1:8))
+        !    vardummy_symetrie = 0.0d0
+        !endif
+        
+        if (.not. allocated(vardummy_paroi_solid)) then
+            allocate(vardummy_paroi_solid(1:nb_paroi_solid,1:8))
+            vardummy_paroi_solid = 0.0d0
+        endif
         
         if (.not. allocated(vardummy_entree)) then
             allocate(vardummy_entree(1:nb_inlet,1:8))
@@ -107,25 +119,39 @@ module mod_solver_kfvs
         implicit none
         
         integer                    :: icel, ifac, jfac
-        integer                    :: cnt_symmetry, cnt_inlet, cnt_outlet
+        integer                    :: cnt_symmetry, cnt_inlet, cnt_outlet, cnt_wall
+        integer                    :: idface
+        real(8)                    :: un, ut
         type(cell_2D),     pointer :: pcel
         type(face),        pointer :: pfac
         
-        cnt_symmetry = 0
+        !cnt_symmetry = 0
         cnt_inlet    = 0
         cnt_outlet   = 0
+        cnt_wall     = 0
         
         do icel = 1, list_cell%nbelm
             pcel => list_cell%cell(icel)%p
             do ifac = 1, 4
                 pfac => pcel%faces(ifac)
                 
-                if (pfac%bc_typ == 1) then ! Airfoil - symetrie
-                    cnt_symmetry = cnt_symmetry + 1 
-                    vardummy_symetrie(cnt_symmetry, 1) = rho(icel)
-                    vardummy_symetrie(cnt_symmetry, 2) = ux(icel)
-                    vardummy_symetrie(cnt_symmetry, 3) = -uy(icel)
-                    vardummy_symetrie(cnt_symmetry, 4) = t(icel)
+                !if (pfac%bc_typ == 1) then ! Airfoil - symetrie
+                !    cnt_symmetry = cnt_symmetry + 1 
+                !    vardummy_symetrie(cnt_symmetry, 1) = rho(icel)
+                !    vardummy_symetrie(cnt_symmetry, 2) = ux(icel)
+                !    vardummy_symetrie(cnt_symmetry, 3) = -uy(icel)
+                !    vardummy_symetrie(cnt_symmetry, 4) = t(icel)
+                !endif 
+                
+                if (pfac%bc_typ == 1) then ! Airfoil - paroi solid
+                    cnt_wall = cnt_wall + 1 
+                    idface   = pfac%idface
+                    un       =  norm_x(idface) * ux(icel) + norm_y(idface) * uy(icel)
+                    ut       = -norm_y(idface) * ux(icel) + norm_x(idface) * uy(icel)
+                    vardummy_paroi_solid(cnt_wall, 1) = rho(icel)
+                    vardummy_paroi_solid(cnt_wall, 2) = norm_x(idface) * (-un) - norm_y(idface) * ut
+                    vardummy_paroi_solid(cnt_wall, 3) = norm_y(idface) * (-un) + norm_x(idface) * ut
+                    vardummy_paroi_solid(cnt_wall, 4) = t(icel)
                 endif 
                 
                 if (pfac%bc_typ == 2) then ! Inflow
@@ -157,10 +183,16 @@ module mod_solver_kfvs
         a     = rho / (8.0d0 * b**3)
         e     = 0.5d0 * rho * (ux**2 + uy**2) + 3.0d0 /2.0d0 * rho * r_gaz * t
         
-        vardummy_symetrie(:, 5) = vardummy_symetrie(:, 1) * r_gaz * vardummy_symetrie(:, 4)
-        vardummy_symetrie(:, 7) = sqrt(3.0d0 * r_gaz * vardummy_symetrie(:, 4))
-        vardummy_symetrie(:, 6) = vardummy_symetrie(:, 1) / (8.0d0 * vardummy_symetrie(:, 7)**3)
-        vardummy_symetrie(:, 8) = 0.5d0 * vardummy_symetrie(:, 1) * (vardummy_symetrie(:, 2)**2 + vardummy_symetrie(:, 3)**2) + 3.0d0 /2.0d0 * vardummy_symetrie(:, 1) * r_gaz * vardummy_symetrie(:, 4)
+        !vardummy_symetrie(:, 5) = vardummy_symetrie(:, 1) * r_gaz * vardummy_symetrie(:, 4)
+        !vardummy_symetrie(:, 7) = sqrt(3.0d0 * r_gaz * vardummy_symetrie(:, 4))
+        !vardummy_symetrie(:, 6) = vardummy_symetrie(:, 1) / (8.0d0 * vardummy_symetrie(:, 7)**3)
+        !vardummy_symetrie(:, 8) = 0.5d0 * vardummy_symetrie(:, 1) * (vardummy_symetrie(:, 2)**2 + vardummy_symetrie(:, 3)**2) + 3.0d0 /2.0d0 * vardummy_symetrie(:, 1) * r_gaz * vardummy_symetrie(:, 4)
+        
+        vardummy_paroi_solid(:, 5) = vardummy_paroi_solid(:, 1) * r_gaz * vardummy_paroi_solid(:, 4)
+        vardummy_paroi_solid(:, 7) = sqrt(3.0d0 * r_gaz * vardummy_paroi_solid(:, 4))
+        vardummy_paroi_solid(:, 6) = vardummy_paroi_solid(:, 1) / (8.0d0 * vardummy_paroi_solid(:, 7)**3)
+        vardummy_paroi_solid(:, 8) = 0.5d0 * vardummy_paroi_solid(:, 1) * (vardummy_paroi_solid(:, 2)**2 + vardummy_paroi_solid(:, 3)**2) + &
+            & 3.0d0 /2.0d0 * vardummy_paroi_solid(:, 1) * r_gaz * vardummy_paroi_solid(:, 4)
         
         vardummy_entree(:, 5) = vardummy_entree(:, 1) * r_gaz * vardummy_entree(:, 4)
         vardummy_entree(:, 7) = sqrt(3.0d0 * r_gaz * vardummy_entree(:, 4))
@@ -240,25 +272,33 @@ module mod_solver_kfvs
         use mod_struct_to_array, only: lr_cell
         implicit none 
         integer                    :: ifac, icel, fac
-        integer                    :: cnt_symmetry, cnt_inlet, cnt_outlet
+        integer                    :: cnt_symmetry, cnt_inlet, cnt_outlet, cnt_wall
         type(cell_2D), pointer     :: pcel
         type(face), pointer        :: pfac
         type(fvm_face_2D), pointer :: pfac_fvm
         
-        cnt_symmetry = 0
+        !cnt_symmetry = 0
         cnt_inlet    = 0
         cnt_outlet   = 0
+        cnt_wall     = 0
         
         ! Create left cell - right cell table for boundary faces
         do icel = 1, list_cell%nbelm
             pcel => list_cell%cell(icel)%p
             do ifac = 1, 4
                 pfac => pcel%faces(ifac)
-                if (pfac%bc_typ == 1) then ! Airfoil - symetrie
-                    cnt_symmetry = cnt_symmetry + 1
+                !if (pfac%bc_typ == 1) then ! Airfoil - symetrie
+                !    cnt_symmetry = cnt_symmetry + 1
+                !    fac = pfac%idface
+                !    lr_cell(fac, 1) = icel
+                !    lr_cell(fac, 2) = cnt_symmetry ! dummy cell for symmetry bc
+                !endif
+                
+                if (pfac%bc_typ == 1) then ! Airfoil - paroi solid
+                    cnt_wall = cnt_wall + 1
                     fac = pfac%idface
                     lr_cell(fac, 1) = icel
-                    lr_cell(fac, 2) = cnt_symmetry ! dummy cell for symmetry bc
+                    lr_cell(fac, 2) = cnt_wall ! dummy cell for solid wall bc
                 endif
                 
                 if (pfac%bc_typ == 2) then ! Inflow
@@ -312,13 +352,23 @@ module mod_solver_kfvs
                 flux(ifac,:)   = len_norm(ifac) * (flux_plus(:) + flux_minus(:))
             endif 
             
-            if (bc_typ(ifac) == 1) then !symmetry
+            !if (bc_typ(ifac) == 1) then !symmetry
+            !    flux_plus(:)   = fluxp(rho(left_cell), ux(left_cell), uy(left_cell), & 
+            !    & e(left_cell), p(left_cell), t(left_cell), a(left_cell), b(left_cell), & 
+            !    & norm_x(ifac), norm_y(ifac))
+            !    flux_minus(:)  = fluxm(vardummy_symetrie(right_cell,1), vardummy_symetrie(right_cell,2), vardummy_symetrie(right_cell,3), & 
+            !    & vardummy_symetrie(right_cell,8), vardummy_symetrie(right_cell,5), vardummy_symetrie(right_cell,4), vardummy_symetrie(right_cell,6), vardummy_symetrie(right_cell,7), & 
+            !    & norm_x(ifac), norm_y(ifac))
+            !    flux(ifac,:)   = len_norm(ifac) * (flux_plus(:) + flux_minus(:))
+            !endif
+            
+            if (bc_typ(ifac) == 1) then !solid wall
                 flux_plus(:)   = fluxp(rho(left_cell), ux(left_cell), uy(left_cell), & 
                 & e(left_cell), p(left_cell), t(left_cell), a(left_cell), b(left_cell), & 
                 & norm_x(ifac), norm_y(ifac))
-                flux_minus(:)  = fluxm(vardummy_symetrie(right_cell,1), vardummy_symetrie(right_cell,2), vardummy_symetrie(right_cell,3), & 
-                & vardummy_symetrie(right_cell,8), vardummy_symetrie(right_cell,5), vardummy_symetrie(right_cell,4), vardummy_symetrie(right_cell,6), vardummy_symetrie(right_cell,7), & 
-                & norm_x(ifac), norm_y(ifac))
+                flux_minus(:)  = fluxm(vardummy_paroi_solid(right_cell,1), vardummy_paroi_solid(right_cell,2), vardummy_paroi_solid(right_cell,3), & 
+                & vardummy_paroi_solid(right_cell,8), vardummy_paroi_solid(right_cell,5), vardummy_paroi_solid(right_cell,4), vardummy_paroi_solid(right_cell,6), &
+                & vardummy_paroi_solid(right_cell,7), norm_x(ifac), norm_y(ifac))
                 flux(ifac,:)   = len_norm(ifac) * (flux_plus(:) + flux_minus(:))
             endif
             

@@ -9,7 +9,8 @@ subroutine pre_processing
     call list_cell%build_cells()
     call list_cell%find_neighbor()
     
-    visualizer%smart_pointer => list_cell
+    !visualizer%smart_pointer => list_cell
+    visualizer = obj_msh_vis(list_cell)                           ! replace a pointer assignment with a Fortran constructor.
     call visualizer%write_vtk()
     call visualizer%write_tecplot()
     
@@ -17,7 +18,8 @@ subroutine pre_processing
     call list_cell%calcul_face_info()    
     call list_cell%assign_face_id()  
     
-    faces_fvm%smart_pointer => list_cell
+    !faces_fvm%smart_pointer => list_cell
+    faces_fvm = obj_fvm_face_2D(list_cell)                        ! replace a pointer assignment with a Fortran constructor.               
     call faces_fvm%alloc()  
     call faces_fvm%get() 
 

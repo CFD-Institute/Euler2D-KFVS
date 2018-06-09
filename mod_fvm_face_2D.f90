@@ -24,7 +24,17 @@ module mod_fvm_face_2D
         procedure :: get   => assign_face_2D
     end type
     
+    interface obj_fvm_face_2D
+        module procedure obj_fvm_face_2D_constructor
+    end interface obj_fvm_face_2D
+    
     contains 
+!---------------------------------------------------------------------- 
+      type(obj_fvm_face_2D) function obj_fvm_face_2D_constructor(obj_cell_2D_container)
+      implicit none 
+      type(obj_cell_2D), target :: obj_cell_2D_container
+      obj_fvm_face_2D_constructor%smart_pointer => obj_cell_2D_container
+      end function obj_fvm_face_2D_constructor
 !----------------------------------------------------------------------
         subroutine allocate_face_2D(this)
         implicit none 

@@ -9,8 +9,18 @@ module mod_write_vtk
         procedure :: write_vtk     => write_mesh_vtk
         procedure :: write_tecplot => write_mesh_tecplot
     end type
+    
+    interface obj_msh_vis
+        module procedure obj_msh_vis_constructor
+    end interface obj_msh_vis
 
     contains
+!---------------------------------------------------------------------- 
+      type(obj_msh_vis) function obj_msh_vis_constructor(obj_cell_2D_container)
+      implicit none 
+      type(obj_cell_2D), target :: obj_cell_2D_container
+      obj_msh_vis_constructor%smart_pointer => obj_cell_2D_container
+      end function obj_msh_vis_constructor
 !----------------------------------------------------------------------    
       subroutine write_mesh_vtk(this)
       implicit none

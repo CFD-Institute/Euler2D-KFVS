@@ -51,7 +51,10 @@ subroutine solver_kfvs
         !-- iteration en temps
         call calcul_rhs
         call euler_time_iteration
-        
+
+        !-- vérifier si convergé
+        call chk_converge(n)
+
         !-- mise a jour
         vect_u=vect_unew
         

@@ -675,4 +675,48 @@ module mod_solver_kfvs
         close(unit = 20)
         end subroutine write_pressure_coefficient
 !----------------------------------------------------------------------
+        subroutine chk_converge(iter)
+        implicit none
+
+        integer, intent(in) :: iter
+
+        real(8), parameter  :: tol = 1.0d-8
+        
+        integer             :: i
+        real(8)             :: dr, drho
+        logical             :: lexist
+        
+        dr   = 0.0d0
+        drho = 0.0d0
+        
+        do i = 1, list_cell%nbelm
+            dr = vect_unew(i,1) - vect_u(i,1)
+            drho = drho + dr*dr
+        enddo 
+        
+        drho = sqrt(drho)
+        
+        inquire(file = 'residual.txt', exist = lexist)
+        
+        if (.not. lexist) then 
+            open(unit = 20, file = 'residual.txt', status = 'new', position = 'append')
+            write(20,'(A20xA30)') 'Iteration', 'Residual of density'
+            write(20,'(I20xF30.20)') iter, drho
+            close(unit = 20)
+        else if (lexist) then 
+            open(unit = 20, file = 'residual.txt', action = 'write', position = 'append')
+            write(20,'(I20xF30.20)') iter, drho
+            close(unit = 20)
+        endif
+        
+
+        if (drho <= tol .and. iter /= 1) then
+            write(6,20) iter
+            call write_solution_vtk(iter)
+            call write_pressure_coefficient(iter)
+            stop 
+        end if
+        
+20      format('Converged after ', I7, ' iterations.')
+        end subroutine chk_converge
 end module

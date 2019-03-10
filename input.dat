@@ -1,0 +1,2 @@
+&mesh_file fname = "naca_ref2"  /
+&init_valu rho_init = 1.2d0, ux_init = 411.6d0, uy_init = 0.0d0, t_init = 300.0d0  /

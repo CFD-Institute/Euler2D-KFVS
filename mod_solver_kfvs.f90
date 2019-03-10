@@ -6,6 +6,7 @@ module mod_solver_kfvs
     use mod_cell_2D
     use mod_fvm_face_2D
     use mod_struct_to_array
+    use mod_read_gmsh,              only :  rho_init, ux_init, uy_init, t_init
     implicit none
 
     real(8)                              :: r_gaz, invdt, dt, tmax
@@ -60,11 +61,11 @@ module mod_solver_kfvs
             allocate(vect_unew(1:list_cell%nbelm,1:4))
         endif
 
-        ! hard code, need to be modified
-        rho =  1.20d0    !0.2d-4 !0.2969689477d-4
-        ux  = 34.30d0    !1059.458022d0
-        uy  =  0.00d0
-        t   = 300.0d0   !1000.0d0 !1295.646765d0
+        rho =  rho_init
+        ux  =   ux_init
+        uy  =   uy_init
+        t   =    t_init
+
 
         end subroutine donnee_initiale
 !----------------------------------------------------------------------
@@ -74,15 +75,11 @@ module mod_solver_kfvs
         integer                    :: i
         type(fvm_face_2D), pointer :: pfac
 
-        !if (nb_symmetry > 0) return
         if (nb_paroi_solid > 0) return
 
         ! Allocating vardummy
         do i = 1, nbfaces
             pfac => faces_fvm%face_2D(i)%f
-            !if (pfac%bc_typ == 1) then ! Airfoil - symetrie
-            !    nb_symmetry = nb_symmetry + 1
-            !endif
             if (pfac%bc_typ == 1) then ! Airfoil - paroi solid
                 nb_paroi_solid = nb_paroi_solid + 1
             endif
@@ -93,11 +90,6 @@ module mod_solver_kfvs
                 nb_outlet   = nb_outlet + 1
             endif
         enddo
-
-        !if (.not. allocated(vardummy_symetrie)) then
-        !    allocate(vardummy_symetrie(1:nb_symmetry,1:8))
-        !    vardummy_symetrie = 0.0d0
-        !endif
 
         if (.not. allocated(vardummy_paroi_solid)) then
             allocate(vardummy_paroi_solid(1:nb_paroi_solid,1:8))
@@ -196,10 +188,10 @@ module mod_solver_kfvs
 
                 if (pfac%bc_typ == 2) then ! Inflow
                     cnt_inlet = cnt_inlet + 1
-                    vardummy_entree(cnt_inlet, 1) =   1.2d0 !0.2969689477d-4
-                    vardummy_entree(cnt_inlet, 2) =  34.3d0 !1059.458022d0
-                    vardummy_entree(cnt_inlet, 3) =   0.0d0
-                    vardummy_entree(cnt_inlet, 4) = 300.0d0 !1295.646765d0
+                    vardummy_entree(cnt_inlet, 1) =   rho_init
+                    vardummy_entree(cnt_inlet, 2) =    ux_init
+                    vardummy_entree(cnt_inlet, 3) =    uy_init
+                    vardummy_entree(cnt_inlet, 4) =     t_init
                 endif
 
                 if (pfac%bc_typ == 3) then ! Outflow
@@ -633,9 +625,9 @@ module mod_solver_kfvs
         integer, intent(in):: iter
 
 
-        real(8), parameter :: rhoref =    0.2d-4
-        real(8), parameter :: velref =  500.0d0
-        real(8), parameter :: temref = 1000.0d0
+        real(8)            :: rhoref
+        real(8)            :: velref
+        real(8)            :: temref
         character(7)       :: citer
         character(300)     :: foutput
 
@@ -645,6 +637,9 @@ module mod_solver_kfvs
         real(8)                :: cp, pinf, ploc
         real(8)                :: vinf
 
+        rhoref = rho_init
+        velref = sqrt(ux_init**2 + uy_init**2)
+        temref = t_init
 
         vinf = velref
         pinf = rhoref * r_gaz * temref
@@ -695,7 +690,7 @@ module mod_solver_kfvs
         enddo
 
         drho = sqrt(drho)
-        
+
         inquire(file = 'residual.txt', exist = lexist)
 
         if (.not. lexist) then

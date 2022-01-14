@@ -17,3 +17,8 @@ Some features:
 Euler2D-kfvs-Fortran2003 is inspired by the structured finite volume solver of [Prof. Luc Mieussens](https://www.math.u-bordeaux.fr/~lmieusse/PAGE_WEB/ENSEIGNEMENT/MMK3/SIMULATION_NUMERIQUE_ECOULEMENTS_FLUIDES/simulations.html)
 
 [More details](https://github.com/truongd8593/euler2D-kfvs-Fortran2003/wiki)
+
+### Donations:
+If you think that any information you obtained here is worth of some money and are willing to pay for it, feel free to send any amount through paypal.
+
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://paypal.me/TruongDang85)

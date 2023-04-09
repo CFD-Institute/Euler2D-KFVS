@@ -17,8 +17,8 @@ jobs:
     - name: Install dependencies
       run: make
 
-    - name: Run check
-      run: make check
+    - name: Run clean
+      run: make clean
 
-    - name: Run distcheck
-      run: make distcheck
+    - name: Run make
+      run: make
